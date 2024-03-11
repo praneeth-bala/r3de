@@ -3,6 +3,8 @@ use std::sync::{ Arc, Mutex };
 use std::sync::atomic::Ordering;
 use std::time::Instant;
 use std::cmp::Ordering as cmpOrdering;
+use std::fs::File;
+use std::io::{BufRead, BufReader};
 
 use crate::objs::{ GUIState, DisplayBuffers, Matrix4x4, Mesh, Tri, Vec3d };
 
@@ -20,44 +22,16 @@ impl Engine{
     pub fn new(state: Arc<Mutex<GUIState>>, buffers_copy: &DisplayBuffers) -> Self{
         let buffers = DisplayBuffers::from(buffers_copy);
 
-        let mut meshes = Vec::with_capacity(1);
-        let mut sample = Vec::with_capacity(12);
-        sample.push(Tri::new(vec![Vec3d::new(0.0, 0.0, 0.0),Vec3d::new(0.0, 1.0, 0.0), Vec3d::new(1.0, 1.0, 0.0)]));
-        sample.push(Tri::new(vec![Vec3d::new(0.0, 0.0, 0.0),Vec3d::new(1.0, 1.0, 0.0), Vec3d::new(1.0, 0.0, 0.0)]));
-        sample.push(Tri::new(vec![Vec3d::new(1.0, 0.0, 0.0),Vec3d::new(1.0, 1.0, 0.0), Vec3d::new(1.0, 1.0, 1.0)]));
-        sample.push(Tri::new(vec![Vec3d::new(1.0, 0.0, 0.0),Vec3d::new(1.0, 1.0, 1.0), Vec3d::new(1.0, 0.0, 1.0)]));
-        sample.push(Tri::new(vec![Vec3d::new(1.0, 0.0, 1.0),Vec3d::new(1.0, 1.0, 1.0), Vec3d::new(0.0, 1.0, 1.0)]));
-        sample.push(Tri::new(vec![Vec3d::new(1.0, 0.0, 1.0),Vec3d::new(0.0, 1.0, 1.0), Vec3d::new(0.0, 0.0, 1.0)]));
-        sample.push(Tri::new(vec![Vec3d::new(0.0, 0.0, 1.0),Vec3d::new(0.0, 1.0, 1.0), Vec3d::new(0.0, 1.0, 0.0)]));
-        sample.push(Tri::new(vec![Vec3d::new(0.0, 0.0, 1.0),Vec3d::new(0.0, 1.0, 0.0), Vec3d::new(0.0, 0.0, 0.0)]));
-        sample.push(Tri::new(vec![Vec3d::new(0.0, 1.0, 0.0),Vec3d::new(0.0, 1.0, 1.0), Vec3d::new(1.0, 1.0, 1.0)]));
-        sample.push(Tri::new(vec![Vec3d::new(0.0, 1.0, 0.0),Vec3d::new(1.0, 1.0, 1.0), Vec3d::new(1.0, 1.0, 0.0)]));
-        sample.push(Tri::new(vec![Vec3d::new(1.0, 0.0, 1.0),Vec3d::new(0.0, 0.0, 1.0), Vec3d::new(0.0, 0.0, 0.0)]));
-        sample.push(Tri::new(vec![Vec3d::new(1.0, 0.0, 1.0),Vec3d::new(0.0, 0.0, 0.0), Vec3d::new(1.0, 0.0, 0.0)]));
-        meshes.push(Mesh::new(sample));
-        
-        // for m in meshes.iter_mut() {
-        //     for t in &mut m.tris {
-        //         t.p[0].z += 3.0;
-        //         t.p[1].z += 3.0;
-        //         t.p[2].z += 3.0;
-        //     }
-        // }
+        let meshes = Vec::with_capacity(1);
 
         // Projection Matrix
 		let f_near = 0.1;
 		let f_far = 1000.0;
 		let f_fov = 90.0;
 		let f_aspect_ratio = buffers.buf_size[0] as f64 / buffers.buf_size[1] as f64;
-		let f_fov_rad = 1.0 / ((f_fov * 0.5 / 180.0 * 3.14159) as f64).tan();
 
         let mut mat_proj = Matrix4x4::new(vec![vec![0.0; 4]; 4]);
-		mat_proj.m[0][0] = f_aspect_ratio * f_fov_rad;
-		mat_proj.m[1][1] = f_fov_rad;
-		mat_proj.m[2][2] = f_far / (f_far - f_near);
-		mat_proj.m[3][2] = (-f_far * f_near) / (f_far - f_near);
-		mat_proj.m[2][3] = 1.0;
-		mat_proj.m[3][3] = 0.0;
+        mat_proj.make_projection(f_fov, f_aspect_ratio, f_near, f_far);
 
         Self { 
             state,
@@ -75,6 +49,33 @@ impl Engine{
         if x<hlen as i64 && y<vlen as i64 {
             pixels[(y as usize)*hlen+(x as usize)] = *color;
         }
+    }
+
+    fn load_from_object_file(&mut self, fpath: String){
+        let file = File::open(fpath).expect("fopen error");
+        let mut reader = BufReader::new(file);
+
+        let mut vec_cache = Vec::with_capacity(0);
+        let mut sample = Vec::with_capacity(0);
+        
+        let mut line = String::new();
+        loop {
+            let bytes_read = reader.read_line(&mut line).expect("read error");
+            if bytes_read == 0 {
+                break;
+            }
+            let chars_as_vec = line.chars().collect::<Vec<char>>();
+            if chars_as_vec[0]=='v' {
+                let trimmed: Vec<&str> = line.trim().split_whitespace().collect();
+                vec_cache.push(Vec3d::new(trimmed[1].parse::<f64>().unwrap(), trimmed[2].parse::<f64>().unwrap(), trimmed[3].parse::<f64>().unwrap()));    
+            }
+            else if chars_as_vec[0]=='f'{
+                let trimmed: Vec<&str> = line.trim().split_whitespace().collect();
+                sample.push(Tri::new(vec![vec_cache[trimmed[1].parse::<usize>().unwrap()-1], vec_cache[trimmed[2].parse::<usize>().unwrap()-1], vec_cache[trimmed[3].parse::<usize>().unwrap()-1]]));
+            }
+            line.clear();
+        }
+        self.meshes.push(Mesh::new(sample));
     }
 
     fn draw_line(&self, x1: i64, y1: i64, x2: i64, y2: i64, color: &egui::Color32, pixels: &mut Vec<egui::Color32>){
@@ -204,7 +205,6 @@ impl Engine{
     }
 
     fn fill_triangle(&self, mut x1: i64, mut y1: i64, mut x2: i64, mut y2: i64, mut x3: i64, mut y3: i64, color: &egui::Color32, pixels: &mut Vec<egui::Color32>) {
-        /* at first sort the three vertices by y-coordinate ascending so v1 is the topmost vertice */
         let mut temp_arr = [[y1, x1], [y2, x2], [y3, x3]];
         temp_arr.sort_by(|a, b| {
             if a[0] >= b[0] {
@@ -215,6 +215,7 @@ impl Engine{
             }
         });
         (x1, y1, x2, y2, x3, y3) = (temp_arr[0][1], temp_arr[0][0], temp_arr[1][1], temp_arr[1][0], temp_arr[2][1], temp_arr[2][0]);
+        
         if y2 == y3 {
             self.fill_bottom_flat_triangle(x1, y1, x2, y2, x3, y3, color, pixels);
         }
@@ -227,7 +228,19 @@ impl Engine{
             self.fill_bottom_flat_triangle(x1, y1, x2, y2, x4, y4, color, pixels);
             self.fill_top_flat_triangle(x2, y2, x4, y4, x3, y3, color, pixels);
         }
-        
+    }
+
+    fn to_screen_space(&self, tri: &mut Tri){
+        for i in 0..3 {
+            tri.p[i].x += 1.0;
+            tri.p[i].y += 1.0;
+            // if tri.p[i].x<0.0 {tri.p[i].x = 0.0}
+            // if tri.p[i].y<0.0 {tri.p[i].y = 0.0}
+            // if tri.p[i].x>2.0 {tri.p[i].x = 2.0}
+            // if tri.p[i].y>2.0 {tri.p[i].y = 2.0}
+            tri.p[i].x *= 0.5*(self.buffers.buf_size[0] as f64);
+            tri.p[i].y *= 0.5*(self.buffers.buf_size[1] as f64);
+        }
     }
 
     fn render(&mut self, inp_buffer_index: usize){
@@ -238,73 +251,64 @@ impl Engine{
         let mut ftheta: f64 = self.begin_time.elapsed().as_secs_f64();
         // ftheta = 10.0;
         let mut mat_rot_z = Matrix4x4::new(vec![vec![0.0; 4]; 4]);
-        mat_rot_z.m[0][0] = ftheta.cos();
-		mat_rot_z.m[0][1] = ftheta.sin();
-		mat_rot_z.m[1][0] = -ftheta.sin();
-		mat_rot_z.m[1][1] = ftheta.cos();
-		mat_rot_z.m[2][2] = 1.0;
-		mat_rot_z.m[3][3] = 1.0;
+        mat_rot_z.make_rotation_z(ftheta);
 
         ftheta *= 0.5;
         let mut mat_rot_x = Matrix4x4::new(vec![vec![0.0; 4]; 4]);
-        mat_rot_x.m[0][0] = 1.0;
-		mat_rot_x.m[1][1] = ftheta.cos();
-		mat_rot_x.m[1][2] = ftheta.sin();
-		mat_rot_x.m[2][1] = -ftheta.sin();
-		mat_rot_x.m[2][2] = ftheta.cos();
-		mat_rot_x.m[3][3] = 1.0;
+        mat_rot_x.make_rotation_x(ftheta);
 
         let mut mat_trans = Matrix4x4::new(vec![vec![0.0; 4]; 4]);
-        mat_trans.m[0][0] = 1.0;
-		mat_trans.m[1][1] = 1.0;
-        mat_trans.m[2][2] = 1.0;
-        mat_trans.m[3][2] = 3.0;
-        mat_trans.m[3][3] = 1.0;
+        mat_trans.make_translation(0.0, 0.0, 8.0);
+
+        let light = Vec3d::new(0.0, 0.0, -1.0);
 
         for m in self.meshes.iter() {
+            let mut triangles_to_raster = Vec::with_capacity(m.tris.len());
             for t in &m.tris {
                 let tri_rotated = mat_rot_z.mul_mat_tri(&t);
                 let tri_rotated = mat_rot_x.mul_mat_tri(&tri_rotated);
                 let tri_translated = mat_trans.mul_mat_tri(&tri_rotated);
-                // Use Cross-Product to get surface normal
-                let (mut normal, mut line1, mut line2) = (Vec3d::new(0.0, 0.0, 0.0), Vec3d::new(0.0, 0.0, 0.0), Vec3d::new(0.0, 0.0, 0.0));
-                line1.x = tri_translated.p[1].x - tri_translated.p[0].x;
-                line1.y = tri_translated.p[1].y - tri_translated.p[0].y;
-                line1.z = tri_translated.p[1].z - tri_translated.p[0].z;
 
-                line2.x = tri_translated.p[2].x - tri_translated.p[0].x;
-                line2.y = tri_translated.p[2].y - tri_translated.p[0].y;
-                line2.z = tri_translated.p[2].z - tri_translated.p[0].z;
+                let triangles_to_project = tri_translated.triangle_clip_against_plane(&Vec3d::new( 0.0, 0.0, 1.0 ), &Vec3d::new( 0.0, 0.0, 1.0 ));
 
-                normal.x = line1.y * line2.z - line1.z * line2.y;
-                normal.y = line1.z * line2.x - line1.x * line2.z;
-                normal.z = line1.x * line2.y - line1.y * line2.x;
+                for tri_translated in triangles_to_project {
+                    // Use Cross-Product to get surface normal
+                    let normal = tri_translated.get_normal();
 
-                let den = (normal.x*normal.x + normal.y*normal.y + normal.z*normal.z).sqrt();
-                normal.x /= den;
-                normal.y /= den;
-                normal.z /= den;
+                    if  normal.dot(&(tri_translated.p[0] - self.v_camera)) < 0.0 {
 
-                if  normal.x * (tri_translated.p[0].x - self.v_camera.x) + 
-                    normal.y * (tri_translated.p[0].y - self.v_camera.y) +
-                    normal.z * (tri_translated.p[0].z - self.v_camera.z) < 0.0 {
+                        let mut tri_projected = self.mat_proj.mul_mat_tri(&tri_translated);
+                        self.to_screen_space(&mut tri_projected);
+                        
+                        let shade = ((normal.x*light.x + normal.y*light.y + normal.z*light.z)*(255.0)) as u8;
+                        tri_projected.shade = shade;
 
-                    let mut tri_projected = self.mat_proj.mul_mat_tri(&tri_translated);
-                    for i in 0..3 {
-                        tri_projected.p[i].x += 1.0;
-                        tri_projected.p[i].y += 1.0;
-                        tri_projected.p[i].x *= 0.5*(self.buffers.buf_size[0] as f64);
-                        tri_projected.p[i].y *= 0.5*(self.buffers.buf_size[1] as f64);
+                        triangles_to_raster.push(tri_projected);
                     }
-                    self.fill_triangle(tri_projected.p[0].x as i64, tri_projected.p[0].y as i64, tri_projected.p[1].x as i64, tri_projected.p[1].y as i64, tri_projected.p[2].x as i64, tri_projected.p[2].y as i64, &egui::Color32::from_rgba_premultiplied(255, 255, 255, 255,), &mut pixels);
-                    self.draw_triangle(tri_projected.p[0].x as i64, tri_projected.p[0].y as i64, tri_projected.p[1].x as i64, tri_projected.p[1].y as i64, tri_projected.p[2].x as i64, tri_projected.p[2].y as i64, &egui::Color32::from_rgba_premultiplied(0, 0, 0, 255,), &mut pixels);
+                }                
+            }
+            triangles_to_raster.sort_by(|a, b| {
+                let za = (a.p[0].z+a.p[1].z+a.p[2].z)/3.0;
+                let zb = (b.p[0].z+b.p[1].z+b.p[2].z)/3.0;
+                if za<zb {
+                    cmpOrdering::Greater
                 }
+                else {
+                    cmpOrdering::Less
+                }
+            });
+            for tri_projected in triangles_to_raster.iter() {
+                self.fill_triangle(tri_projected.p[0].x as i64, tri_projected.p[0].y as i64, tri_projected.p[1].x as i64, tri_projected.p[1].y as i64, tri_projected.p[2].x as i64, tri_projected.p[2].y as i64, &egui::Color32::from_rgba_premultiplied(tri_projected.shade, tri_projected.shade, tri_projected.shade, 255), &mut pixels);
+                self.draw_triangle(tri_projected.p[0].x as i64, tri_projected.p[0].y as i64, tri_projected.p[1].x as i64, tri_projected.p[1].y as i64, tri_projected.p[2].x as i64, tri_projected.p[2].y as i64, &egui::Color32::from_rgba_premultiplied(0, 0, 0, 255,), &mut pixels);
             }
         }
         drop(pixels);
     }
     
     pub fn lo(&mut self) {
+
+        self.load_from_object_file("./teapot.obj".to_string());
+
         loop {
             let trip_state_lock = self.buffers.trip_state.lock().unwrap();
             let inp_buffer_index = trip_state_lock[1];

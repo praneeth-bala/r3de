@@ -1,0 +1,14 @@
+// let mut sample = Vec::with_capacity(12);
+// sample.push(Tri::new(vec![Vec3d::new(0.0, 0.0, 0.0),Vec3d::new(0.0, 1.0, 0.0), Vec3d::new(1.0, 1.0, 0.0)]));
+// sample.push(Tri::new(vec![Vec3d::new(0.0, 0.0, 0.0),Vec3d::new(1.0, 1.0, 0.0), Vec3d::new(1.0, 0.0, 0.0)]));
+// sample.push(Tri::new(vec![Vec3d::new(1.0, 0.0, 0.0),Vec3d::new(1.0, 1.0, 0.0), Vec3d::new(1.0, 1.0, 1.0)]));
+// sample.push(Tri::new(vec![Vec3d::new(1.0, 0.0, 0.0),Vec3d::new(1.0, 1.0, 1.0), Vec3d::new(1.0, 0.0, 1.0)]));
+// sample.push(Tri::new(vec![Vec3d::new(1.0, 0.0, 1.0),Vec3d::new(1.0, 1.0, 1.0), Vec3d::new(0.0, 1.0, 1.0)]));
+// sample.push(Tri::new(vec![Vec3d::new(1.0, 0.0, 1.0),Vec3d::new(0.0, 1.0, 1.0), Vec3d::new(0.0, 0.0, 1.0)]));
+// sample.push(Tri::new(vec![Vec3d::new(0.0, 0.0, 1.0),Vec3d::new(0.0, 1.0, 1.0), Vec3d::new(0.0, 1.0, 0.0)]));
+// sample.push(Tri::new(vec![Vec3d::new(0.0, 0.0, 1.0),Vec3d::new(0.0, 1.0, 0.0), Vec3d::new(0.0, 0.0, 0.0)]));
+// sample.push(Tri::new(vec![Vec3d::new(0.0, 1.0, 0.0),Vec3d::new(0.0, 1.0, 1.0), Vec3d::new(1.0, 1.0, 1.0)]));
+// sample.push(Tri::new(vec![Vec3d::new(0.0, 1.0, 0.0),Vec3d::new(1.0, 1.0, 1.0), Vec3d::new(1.0, 1.0, 0.0)]));
+// sample.push(Tri::new(vec![Vec3d::new(1.0, 0.0, 1.0),Vec3d::new(0.0, 0.0, 1.0), Vec3d::new(0.0, 0.0, 0.0)]));
+// sample.push(Tri::new(vec![Vec3d::new(1.0, 0.0, 1.0),Vec3d::new(0.0, 0.0, 0.0), Vec3d::new(1.0, 0.0, 0.0)]));
+// meshes.push(Mesh::new(sample));
